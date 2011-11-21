@@ -1,12 +1,20 @@
 %% Author: eschneef
 %% Created: Sep 19, 2008
-%% Description: TODO: Add description to bins
+%% Description: This module takes some number of arbitrarily sized objects 
+%% and places them in some arbitrary number of container. The method somewhat 
+%% naïve; it places the largest object in the container with the most open 
+%% space until that is no longer enough space in any container to hold any 
+%% of the remaining objects. It reads the file 'bins.txt' in the local 
+%% directory to get information about the objects and containers. The first 
+%% line of the file is the number of containers, the second is the capacity 
+%% of the containers, the following lines are the sizes of each object to be 
+%% placed.
+
 -module(bins).
 
 -export([start/0]).
 
 start() ->
-    io:fwrite("this is it", []),
     Fprint = fun(Bins, Boxes) ->
                      lists:foreach(
                        fun({bin, BinId, Rem, BoxList}) -> 
@@ -29,7 +37,7 @@ start() ->
             file:close(Fid),
             case pack(length(Boxes), Bins, [], Boxes) of
                 {failed, B, R} ->
-                    io:fwrite("failed~n", []),
+                    io:fwrite("Too many boxes~n", []),
                     Fprint(B, R);
                 {done, B} ->
                     io:fwrite("done~n", []),
@@ -50,7 +58,6 @@ parse(Fid) ->
 get_boxes(Fid, Boxes) ->
     case io:fread(Fid, '', "~d") of
         eof ->
-            %% io:fwrite("got eof~n", []),
             Boxes;
         {error, {fread, integer}} ->
             Boxes;
@@ -60,20 +67,20 @@ get_boxes(Fid, Boxes) ->
             io:fwrite("~w~n", [Other])
     end.
 
-pack(0, OBins, NBins, Boxes) ->
-    {failed, lists:keysort(2, OBins ++ NBins), Boxes};
-pack(_, OBins, NBins, []) ->
-    {done, lists:keysort(2, OBins ++ NBins)};
+pack(0, OldBins, NewBins, Boxes) ->
+    {failed, lists:keysort(2, OldBins ++ NewBins), Boxes};
+pack(_, OldBins, NewBins, []) ->
+    {done, lists:keysort(2, OldBins ++ NewBins)};
 pack(N, [], Bins, Boxes) ->
     pack(N, lists:reverse(lists:keysort(3, Bins)), [], Boxes);
-pack(N, OBins = [{bin, BinId, Remaining, In}|Bins], NewBins, OBoxes = [Box|Boxes]) ->
-    case lists:member(Remaining, OBoxes) of
+pack(N, OldBins = [{bin, BinId, Remaining, In}|Bins], NewBins, AllBoxes = [Box|Boxes]) ->
+    case lists:member(Remaining, AllBoxes) of
         true ->
-            pack(N, Bins, [{bin, BinId, 0, [Remaining|In]}|NewBins], OBoxes -- [Remaining]);
+            pack(N, Bins, [{bin, BinId, 0, [Remaining|In]}|NewBins], AllBoxes -- [Remaining]);
         false ->
             case Remaining - Box of
                 Space when Space < 0 ->
-                    pack(N-1, OBins, NewBins, rotate(OBoxes));
+                    pack(N-1, OldBins, NewBins, rotate(AllBoxes));
                 Space ->
                     pack(N, Bins, [{bin, BinId, Space, [Box|In]}|NewBins], Boxes)
             end
